@@ -1,0 +1,56 @@
+# Part of the Crubit project, under the Apache License v2.0 with LLVM
+# Exceptions. See /LICENSE for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+name: Update Rust Nightly
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Weekly on Sunday at midnight
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run update script
+        id: run_script
+        run: python3 .github/workflows/update_rust.py
+
+      - name: Check for changes
+        id: check_diff
+        run: |
+          if git diff --exit-code MODULE.bazel; then
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+            echo "No update needed."
+          else
+            echo "update_needed=true" >> $GITHUB_OUTPUT
+            echo "Update needed."
+          fi
+
+      - name: Create branch and PR
+        if: steps.check_diff.outputs.update_needed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST_DATE: ${{ steps.run_script.outputs.latest_date }}
+        run: |
+          BRANCH_NAME="update-rust-${LATEST_DATE}"
+
+          git checkout -b "$BRANCH_NAME"
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add MODULE.bazel
+          git commit -m "Update Rust nightly to ${LATEST_DATE}"
+          git push origin "$BRANCH_NAME"
+
+          gh pr create --title "Update Rust nightly to ${LATEST_DATE}" --body "Automatically updated Rust nightly version in MODULE.bazel." --head "$BRANCH_NAME" --base main
