@@ -58,4 +58,44 @@ jobs:
         cmake --build build --parallel
         cd build
         ctest --output-on-failure --parallel 2
+
+  test_bazel:
+
+    runs-on: ubuntu-latest
+    env:
+      HAS_BAZEL_CACHE_SECRET: ${{ secrets.BAZEL_CACHE_GCP_SERVICE_ACCOUNT_KEY != '' }}
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: bazel-contrib/setup-bazel@0.19.0
+      with:
+        bazelisk-cache: true
+        cache-save: true
+        external-cache: true
+        repository-cache: true
+
+    - name: 'Authenticate to Google Cloud'
+      if: env.HAS_BAZEL_CACHE_SECRET == 'true'
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: '${{ secrets.BAZEL_CACHE_GCP_SERVICE_ACCOUNT_KEY }}'
+
+    - name: 'Set up Bazel Remote Cache flags'
+      id: bazel_cache_flags
+      run: |
+        if [[ "$HAS_BAZEL_CACHE_SECRET" == "true" ]]; then
+          echo "RCACHE_FLAGS=--remote_cache=https://storage.googleapis.com/CRUBIT_BUCKET_NAME --google_default_credentials" >> $GITHUB_ENV
+          echo "Using GCS Remote Cache"
+        else
+          echo "RCACHE_FLAGS=" >> $GITHUB_ENV
+          echo "Skipping GCS Remote Cache (no secret found)"
+        fi
+
+    - name: "Build Crubit using Bazel"
+      run: >
+        bazelisk build
+        --lockfile_mode=error
+        ${RCACHE_FLAGS}
+        rs_bindings_from_cc:bazel_types
+        rs_bindings_from_cc:cmdline_flags
 # LINT.ThenChange(//depot/copy.bara.sky)
