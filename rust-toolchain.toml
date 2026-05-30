@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 [toolchain]
-channel = "nightly"
+channel = "nightly-2026-05-11"  # DO NOT SUBMIT
 components = ["rustc-dev", "llvm-tools", "rustfmt"]

@@ -103,8 +103,9 @@ pub fn collect_clang_libs() -> (Vec<PathBuf>, Vec<OsString>) {
     #[cfg(windows)]
     libs.push(OsString::from("Version"));
 
-    // llvm depends on zlib.
+    // llvm depends on zlib and zstd.
     libs.push(OsString::from(ZLIB_NAME));
+    libs.push(OsString::from("zstd"));
 
     libs.sort_unstable();
 

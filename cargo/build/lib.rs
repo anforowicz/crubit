@@ -58,6 +58,10 @@ pub fn compile_cc_lib<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     let mut cc_lib = cc::Build::new();
     cc_lib.out_dir(&obj_dir);
+    if cfg!(unix) {
+        cc_lib.define("LLVM_ON_UNIX", "1");
+        cc_lib.cpp_link_stdlib(Some("c++"));
+    }
     for f in flags::CC_FLAGS {
         cc_lib.flag(f);
     }
