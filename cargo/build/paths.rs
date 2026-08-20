@@ -46,6 +46,101 @@ pub fn print_env_to_string(env_var: &str) -> Option<String> {
     std::env::var(env_var).ok().to_owned()
 }
 
+/// Reads comma-separated paths from an environment variable, optionally requiring it to be set,
+/// and validates that all specified paths exist on disk.
+pub fn get_env_paths(env_var: &str, required: bool) -> Vec<std::path::PathBuf> {
+    println!("cargo:rerun-if-env-changed={}", env_var);
+    let val = match std::env::var(env_var) {
+        Ok(v) => v,
+        Err(_) => {
+            if required {
+                panic!("\n\nERROR: Required environment variable '{}' is not set.\n\n", env_var);
+            } else {
+                return vec![];
+            }
+        }
+    };
+
+    let mut paths = Vec::new();
+    for p in val.split(',').filter(|s| !s.is_empty()) {
+        let path = std::path::PathBuf::from(p);
+        if !path.exists() {
+            panic!(
+                "\n\nERROR: Path '{}' specified in '{}' does not exist.\n\n",
+                path.display(),
+                env_var
+            );
+        }
+        paths.push(path);
+    }
+    paths
+}
+
+/// Discovers and validates static library archives (.a / .lib) in directories specified by env_var.
+pub fn collect_static_libs<F>(
+    env_var: &str,
+    lib_extension: &str,
+    include_lib_fn: F,
+) -> (Vec<std::path::PathBuf>, Vec<std::ffi::OsString>)
+where
+    F: Fn(&str) -> bool,
+{
+    let lib_dirs = get_env_paths(env_var, true);
+    let mut libs = Vec::new();
+
+    for dir in &lib_dirs {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(entries) => entries,
+            Err(e) => panic!(
+                "\n\nERROR: Unable to read directory '{}' specified in '{}': {}\n\n",
+                dir.display(),
+                env_var,
+                e
+            ),
+        };
+
+        for entry in entries {
+            let Ok(entry) = entry else { continue };
+            let Ok(meta) = entry.metadata() else { continue };
+            if !meta.is_file() {
+                continue;
+            }
+            let path = entry.path();
+            let Some(ext) = path.extension() else {
+                continue;
+            };
+            if ext != lib_extension {
+                continue;
+            }
+            let Some(stem) = path.file_stem() else {
+                continue;
+            };
+            let stem_str = stem.to_str().unwrap_or_else(|| {
+                panic!("Non-UTF8 filename in '{}': {:?}", env_var, path.display())
+            });
+            let libname = if cfg!(windows) {
+                stem_str
+            } else {
+                stem_str.strip_prefix("lib").unwrap_or(stem_str)
+            };
+            if include_lib_fn(libname) {
+                libs.push(std::ffi::OsString::from(libname));
+            }
+        }
+    }
+
+    if libs.is_empty() {
+        panic!(
+            "\n\nERROR: No .{} static library files found in directory specified by '{}' ({:?}).\n\n",
+            lib_extension, env_var, lib_dirs
+        );
+    }
+
+    libs.sort_unstable();
+    (lib_dirs, libs)
+}
+
+
 pub fn add_source_file<P: AsRef<Path>>(build: &mut cc::Build, path: P) -> io::Result<()> {
     print!("cargo::rerun-if-changed=");
     io::stdout().write(path.as_ref().as_os_str().as_encoded_bytes())?;

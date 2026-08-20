@@ -10,22 +10,14 @@ use std::process::Command;
 
 /// Returns a list of include paths for protobuf headers.
 pub fn collect_protobuf_includes() -> Vec<PathBuf> {
-    if let Some(env_paths) = paths::print_env_to_string("PROTOBUF_INCLUDE_PATH") {
-        env_paths.split(',').map(|s| Path::new(s).to_owned()).collect()
-    } else {
-        vec![]
-    }
+    paths::get_env_paths("PROTOBUF_INCLUDE_PATH", false)
 }
 
 /// Returns search paths to protobuf static libraries.
 pub fn collect_protobuf_lib_dirs() -> Vec<PathBuf> {
-    paths::print_env_to_string("PROTOBUF_LIB_STATIC_PATH")
-        .unwrap_or_default()
-        .split(',')
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
-        .collect()
+    paths::get_env_paths("PROTOBUF_LIB_STATIC_PATH", false)
 }
+
 
 /// Compiles `.proto` files to C++ source/headers using `protoc`, and returns paths to all
 /// generated .pb.cc C++ source files inside the out-directory.

@@ -21,6 +21,8 @@ pub const CC_FLAGS: &[&str] = &[
     // TODO(danakj): This should probably be configurable.
     #[cfg(unix)]
     "-fno-rtti",
+    #[cfg(unix)]
+    "-DLLVM_ON_UNIX",
     #[cfg(windows)]
     "/GR-",
 ];
